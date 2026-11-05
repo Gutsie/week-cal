@@ -1,0 +1,85 @@
+:root { --bg:#f4f4f2; --panel:#fff; --ink:#222; --muted:#777; --line:#ddd; }
+* { box-sizing: border-box; }
+body {
+  margin: 0; font: 14px/1.4 system-ui, sans-serif; background: var(--bg); color: var(--ink);
+  display: grid; grid-template-columns: 300px 1fr; grid-template-rows: auto 1fr; min-height: 100vh;
+}
+
+/* Top bar + tabs */
+.topbar {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 24px;
+  padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.brand { font-family: Fredoka, system-ui, sans-serif; font-size: 18px; }
+.tabs { display: flex; gap: 4px; }
+.tabs a {
+  padding: 6px 14px; border-radius: 999px; color: var(--muted); text-decoration: none; font-weight: 600;
+}
+.tabs a.active { background: #222; color: #fff; }
+
+/* Side panel */
+.panel { background: var(--panel); border-right: 1px solid var(--line); padding: 16px; overflow: auto; }
+label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+input[type=text], input[type=number], select, textarea {
+  width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff;
+}
+textarea { height: 320px; font-size: 13px; line-height: 1.5; resize: vertical; }
+.hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.check { display: flex; align-items: center; gap: 6px; margin-top: 10px; color: var(--ink); font-size: 13px; }
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; }
+button {
+  margin-top: 14px; width: 100%; padding: 10px; border: 0; border-radius: 8px;
+  background: #222; color: #fff; font: inherit; font-weight: 600; cursor: pointer;
+}
+button.secondary { background: #e6e6e3; color: #222; margin-top: 8px; }
+button.link { background: none; color: var(--muted); text-decoration: underline; font-weight: 400; padding: 4px; }
+
+.shared { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); }
+.shared summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.day { display: grid; grid-template-columns: 1fr 40px; gap: 6px; margin-bottom: 6px; }
+.day input[type=color] { width: 40px; height: 32px; border: 1px solid var(--line); border-radius: 6px; padding: 2px; background: #fff; }
+
+/* Only show the active tab's panel section and view */
+body[data-tab="kalender"] [data-for="kort"],
+body[data-tab="kort"] [data-for="kalender"] { display: none !important; }
+
+main { padding: 24px; overflow: auto; }
+.view[data-for="kalender"] { display: flex; justify-content: center; }
+#calendar { background: #fff; box-shadow: 0 4px 24px rgba(0,0,0,.12); max-width: 100%; max-height: calc(100vh - 110px); }
+
+/* Card sheets, in real millimetres */
+#cards { display: flex; flex-direction: column; align-items: center; gap: 24px; }
+.sheet {
+  background: #fff; box-shadow: 0 4px 24px rgba(0,0,0,.12); padding: 8mm; flex: none;
+  display: grid; grid-template-columns: repeat(auto-fill, var(--card)); grid-auto-rows: var(--card);
+  gap: 3mm; justify-content: center; align-content: start;
+}
+.card {
+  border: 0.4mm dashed #bbb; border-radius: 3mm; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 1.5mm; overflow: hidden; background: #fff;
+}
+.card .icon {
+  font-size: calc(var(--card) * 0.5); line-height: 1;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+}
+.card .word {
+  font-family: var(--card-font), system-ui, sans-serif; font-weight: 600;
+  font-size: calc(var(--card) * 0.13); line-height: 1.1; text-align: center; padding: 0 2mm;
+}
+.card.blank .icon { visibility: hidden; }
+
+@media (max-width: 760px) {
+  body { grid-template-columns: 1fr; }
+  .panel { border-right: 0; border-bottom: 1px solid var(--line); }
+}
+
+@media print {
+  .topbar, .panel { display: none !important; }
+  body { display: block; background: #fff; }
+  main { padding: 0; }
+  #calendar { box-shadow: none; width: 100%; height: auto; max-height: none; }
+  #cards { display: block; }
+  .sheet { box-shadow: none; break-after: page; }
+  .sheet:last-child { break-after: auto; }
+}

@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Veckokalender A3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#f4f4f2; --panel:#fff; --ink:#222; --muted:#777; --line:#ddd; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.4 system-ui, sans-serif; background:var(--bg); color:var(--ink);
+         display:grid; grid-template-columns: 300px 1fr; min-height:100vh; }
+  aside { background:var(--panel); border-right:1px solid var(--line); padding:16px; overflow:auto; }
+  h1 { font-size:16px; margin:0 0 12px; }
+  label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+  input[type=text], input[type=date], input[type=number], select { width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font:inherit; }
+  .day { display:grid; grid-template-columns: 1fr 40px; gap:6px; margin-bottom:6px; }
+  .day input[type=color] { width:40px; height:32px; border:1px solid var(--line); border-radius:6px; padding:2px; background:#fff; }
+  .row { display:flex; gap:8px; }
+  .row > * { flex:1; }
+  .check { display:flex; align-items:center; gap:6px; margin-top:10px; color:var(--ink); font-size:13px; }
+  button { margin-top:14px; width:100%; padding:10px; border:0; border-radius:8px; background:#222; color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  button.secondary { background:#e6e6e3; color:#222; margin-top:8px; }
+  main { display:flex; align-items:center; justify-content:center; padding:24px; overflow:auto; }
+  canvas { background:#fff; box-shadow:0 4px 24px rgba(0,0,0,.12); max-width:100%; max-height:calc(100vh - 48px); }
+  @media (max-width:760px){ body{grid-template-columns:1fr} aside{border-right:0;border-bottom:1px solid var(--line)} }
+  @page { size: A3 landscape; margin:0; }
+  @media print { aside{display:none} body{display:block;background:#fff} main{padding:0}
+    canvas{box-shadow:none;width:100%;height:auto;max-height:none} }
+</style>
+</head>
+<body>
+<aside>
+  <h1>Veckokalender → A3</h1>
+  <a href="cards.html" style="color:inherit;font-size:13px">Aktivitetskort →</a>
+
+  <label>Rubrik</label>
+  <input id="title" type="text" value="Min vecka">
+
+  <label>Orientering</label>
+  <select id="orient"><option value="landscape">Liggande</option><option value="portrait">Stående</option></select>
+
+  <label>Typsnitt</label>
+  <select id="font"><option>Fredoka</option><option>system-ui</option><option>Georgia</option><option>Helvetica</option><option>Courier New</option></select>
+
+  <label class="check"><input id="fade" type="checkbox" checked> Toning från rubrik till kolumn</label>
+  <label class="check"><input id="weekend" type="checkbox" checked> Markera helgen</label>
+
+  <label style="margin-top:16px">Dagar (namn + färg)</label>
+  <div id="days"></div>
+
+  <button id="dl">Ladda ner PNG (300 dpi)</button>
+  <button id="print" class="secondary">Skriv ut / Spara som PDF</button>
+</aside>
+<main><canvas id="c"></canvas></main>
+
+<script>
+const DEFAULTS = [
+  // rainbow order: red, orange, yellow, green, blue, indigo, violet
+  ["Måndag",  "#ff6b6b"],
+  ["Tisdag",  "#ffa94d"],
+  ["Onsdag",  "#ffe066"],
+  ["Torsdag", "#69db7c"],
+  ["Fredag",  "#4dabf7"],
+  ["Lördag",  "#748ffc"],
+  ["Söndag",  "#da77f2"],
+];
+// A3 = 297 x 420 mm @ 300 dpi
+const A3 = { short: 3508, long: 4961 };
+
+const $ = id => document.getElementById(id);
+const daysEl = $("days");
+DEFAULTS.forEach(([name, color], i) => {
+  daysEl.insertAdjacentHTML("beforeend",
+    `<div class="day"><input type="text" id="n${i}" value="${name}"><input type="color" id="k${i}" value="${color}"></div>`);
+});
+
+function shade(hex, amt) { // amt <0 darker, >0 lighter (mix with white)
+  const n = parseInt(hex.slice(1), 16); let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  if (amt >= 0) { r += (255 - r) * amt; g += (255 - g) * amt; b += (255 - b) * amt; }
+  else { r *= 1 + amt; g *= 1 + amt; b *= 1 + amt; }
+  return `rgb(${r|0},${g|0},${b|0})`;
+}
+function inkFor(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const L = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return L > 0.45 ? "#1d1d1d" : "#ffffff"; // keep dark text on all the bright pastels
+}
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+}
+
+function draw() {
+  const c = $("c"), ctx = c.getContext("2d");
+  const land = $("orient").value === "landscape";
+  const W = land ? A3.long : A3.short, H = land ? A3.short : A3.long;
+  c.width = W; c.height = H;
+  document.querySelector("style").sheet; // noop
+  const font = $("font").value;
+  const u = W / 100; // unit
+
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
+
+  const margin = 1.5 * u, gap = 0.8 * u; // 1.5u ≈ 6 mm, safe for most printers' unprintable edge
+  const title = $("title").value.trim();
+  // Title bar
+  let top = margin;
+  if (title) {
+    const th = land ? 4.2 * u : 5.5 * u;
+    ctx.fillStyle = "#1d1d1d"; ctx.textBaseline = "alphabetic";
+    ctx.font = `600 ${th * 0.8}px ${font}`; ctx.textAlign = "left";
+    ctx.fillText(title, margin, top + th * 0.8);
+    top += th + 1.2 * u;
+  }
+
+  const wkGap = $("weekend").checked ? 2.4 * u : 0; // extra space before Saturday
+  const colW = (W - 2 * margin - 6 * gap - wkGap) / 7;
+  const colH = H - top - margin;
+  const headH = land ? 6 * u : 7.5 * u;
+  const radius = 1.2 * u;
+
+  // one shared label size: shrink until the longest label fits
+  let fs = Math.min(4 * u, headH * 0.6);
+  const widest = () => Math.max(...[0,1,2,3,4,5,6].map(i => ctx.measureText($("n" + i).value).width));
+  ctx.font = `600 ${fs}px ${font}`;
+  while (widest() > colW * 0.78 && fs > 0.8 * u) { fs *= 0.95; ctx.font = `600 ${fs}px ${font}`; }
+
+  for (let i = 0; i < 7; i++) {
+    const color = $("k" + i).value, name = $("n" + i).value;
+    const x = margin + i * (colW + gap) + (i >= 5 ? wkGap : 0);
+
+    if (i === 5 && wkGap) { // dotted divider between weekdays and weekend
+      const dx = x - (gap + wkGap) / 2, r = 0.22 * u, step = 1.1 * u;
+      ctx.fillStyle = "#c4c4c4";
+      for (let y = top + r; y < top + colH; y += step) { ctx.beginPath(); ctx.arc(dx, y, r, 0, Math.PI * 2); ctx.fill(); }
+    }
+
+    // body
+    roundRect(ctx, x, top, colW, colH, radius);
+    if ($("fade").checked) {
+      // solid header colour, then a soft fade down into a pale tint
+      const g = ctx.createLinearGradient(0, top, 0, top + colH);
+      const h = headH / colH;
+      g.addColorStop(0, color);
+      g.addColorStop(h, color);
+      g.addColorStop(h + (1 - h) * 0.12, shade(color, 0.65));
+      g.addColorStop(1, shade(color, 0.72));
+      ctx.fillStyle = g; ctx.fill();
+    } else {
+      ctx.fillStyle = shade(color, 0.65); ctx.fill();
+      ctx.save(); roundRect(ctx, x, top, colW, colH, radius); ctx.clip();
+      ctx.fillStyle = color; ctx.fillRect(x, top, colW, headH); ctx.restore();
+    }
+
+    // header text
+    const ink = inkFor(color);
+    ctx.fillStyle = ink; ctx.textAlign = "center";
+    ctx.font = `600 ${fs}px ${font}`;
+    ctx.textBaseline = "middle"; ctx.fillText(name, x + colW / 2, top + headH / 2); ctx.textBaseline = "alphabetic";
+  }
+}
+
+document.querySelector("aside").addEventListener("input", draw);
+$("dl").onclick = () => {
+  const a = document.createElement("a");
+  a.download = "veckokalender-A3.png";
+  a.href = $("c").toDataURL("image/png"); a.click();
+};
+$("print").onclick = () => {
+  const land = $("orient").value === "landscape";
+  let s = document.getElementById("pagesize");
+  if (!s) { s = document.createElement("style"); s.id = "pagesize"; document.head.appendChild(s); }
+  s.textContent = `@page { size: A3 ${land ? "landscape" : "portrait"}; margin: 0; }`;
+  window.print();
+};
+draw();
+document.fonts.load("600 100px Fredoka").then(draw); // redraw once the web font is ready
+</script>
+</body>
+</html>

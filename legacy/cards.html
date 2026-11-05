@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aktivitetskort</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&display=swap" rel="stylesheet">
+<style id="pagestyle">@page { size: A4 portrait; margin: 0; }</style>
+<style>
+  :root { --bg:#f4f4f2; --panel:#fff; --ink:#222; --muted:#777; --line:#ddd; --card: 45mm; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.4 system-ui, sans-serif; background:var(--bg); color:var(--ink);
+         display:grid; grid-template-columns: 300px 1fr; min-height:100vh; }
+  aside { background:var(--panel); border-right:1px solid var(--line); padding:16px; overflow:auto; }
+  aside h1 { font-size:16px; margin:0 0 12px; }
+  aside a { color:inherit; font-size:13px; }
+  label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+  input, select, textarea { width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font:inherit; }
+  textarea { height:340px; font-size:13px; line-height:1.5; resize:vertical; }
+  .hint { font-size:12px; color:var(--muted); margin-top:4px; }
+  .check { display:flex; align-items:center; gap:6px; margin-top:10px; color:var(--ink); font-size:13px; }
+  .check input { width:auto; }
+  button { margin-top:14px; width:100%; padding:10px; border:0; border-radius:8px; background:#222; color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  main { padding:24px; overflow:auto; display:flex; flex-direction:column; align-items:center; gap:24px; }
+
+  /* printable sheet, real millimetres */
+  .sheet { background:#fff; box-shadow:0 4px 24px rgba(0,0,0,.12); padding:8mm;
+           display:grid; grid-template-columns: repeat(auto-fill, var(--card)); grid-auto-rows: var(--card);
+           gap:3mm; justify-content:center; align-content:start; }
+  .card { border:0.4mm dashed #bbb; border-radius:3mm; display:flex; flex-direction:column;
+          align-items:center; justify-content:center; gap:1.5mm; overflow:hidden; background:#fff; }
+  .card .icon { font-size:calc(var(--card) * 0.5); line-height:1;
+                font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif; }
+  .card .word { font-family:Fredoka, system-ui, sans-serif; font-weight:600;
+                font-size:calc(var(--card) * 0.13); line-height:1.1; text-align:center; padding:0 2mm; }
+  .card.blank .icon { visibility:hidden; }
+
+  @media (max-width:760px){ body{grid-template-columns:1fr} aside{border-right:0;border-bottom:1px solid var(--line)} }
+  @media print {
+    aside { display:none; }
+    body { display:block; background:#fff; }
+    main { padding:0; gap:0; display:block; }
+    .sheet { box-shadow:none; break-after:page; }
+    .sheet:last-child { break-after:auto; }
+  }
+</style>
+</head>
+<body>
+<aside>
+  <h1>Aktivitetskort</h1>
+  <a href="index.html">← Till veckokalendern</a>
+
+  <label>Kort (en per rad: ikon och ord)</label>
+  <textarea id="list"></textarea>
+  <div class="hint">Skriv en emoji, ett mellanslag och ordet. Lägg till t.ex. <b>x5</b> sist för fem kort. Totalt: <b id="total">0</b> kort.</div>
+
+  <div style="display:flex;gap:8px">
+    <div style="flex:1"><label>Papper</label>
+      <select id="paper"><option value="A4">A4</option><option value="A3">A3</option></select></div>
+    <div style="flex:1"><label>Kortstorlek (mm)</label>
+      <input id="size" type="number" min="25" max="80" value="45"></div>
+  </div>
+  <div class="hint">45 mm passar kolumnerna på A3 liggande.</div>
+
+  <label class="check"><input id="blanks" type="checkbox"> Fyll sista sidan med tomma kort</label>
+
+  <button id="print">Skriv ut / Spara som PDF</button>
+</aside>
+<main id="out"></main>
+
+<script>
+const DEFAULT_CARDS = `🏫 Förskola x5
+🛁 Bad x3
+🪥 Borsta tänder x14
+🛝 Lekpark x2
+🌲 Skogen
+🎉 Kalas
+📚 Bibliotek
+🛒 Handla
+🍬 Lördagsgodis
+🍕 Pizza
+🎨 Måla
+🎵 Musik
+🩺 Doktorn
+🦷 Tandläkare
+🛋️ Mysa x2`;
+
+const PAPER = { A4: [210, 297], A3: [297, 420] };
+const MARGIN = 8, GAP = 3;
+const $ = id => document.getElementById(id);
+$("list").value = DEFAULT_CARDS;
+
+function esc(s) { return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function render() {
+  const [pw, ph] = PAPER[$("paper").value];
+  const size = Math.min(80, Math.max(25, +$("size").value || 45));
+  document.documentElement.style.setProperty("--card", size + "mm");
+  $("pagestyle").textContent = `@page { size: ${$("paper").value} portrait; margin: 0; }`;
+
+  const cols = Math.floor((pw - 2 * MARGIN + GAP) / (size + GAP));
+  const rows = Math.floor((ph - 2 * MARGIN + GAP) / (size + GAP));
+  const perPage = Math.max(1, cols * rows);
+
+  const cards = $("list").value.split("\n").map(l => l.trim()).filter(Boolean).flatMap(l => {
+    let n = 1;
+    const m = l.match(/\s+[x×](\d+)$/i); // trailing "x5" = five copies
+    if (m) { n = Math.min(50, +m[1]); l = l.slice(0, m.index); }
+    const i = l.indexOf(" ");
+    const card = i < 0 ? { icon: l, word: "" } : { icon: l.slice(0, i), word: l.slice(i + 1).trim() };
+    return Array(n).fill(card);
+  });
+  $("total").textContent = cards.length;
+  if ($("blanks").checked) {
+    const rem = (perPage - (cards.length % perPage)) % perPage;
+    for (let i = 0; i < rem; i++) cards.push({ icon: "", word: "", blank: true });
+  }
+
+  let html = "";
+  for (let p = 0; p < Math.max(1, cards.length); p += perPage) {
+    html += `<div class="sheet" style="width:${pw}mm;height:${ph}mm">` +
+      cards.slice(p, p + perPage).map(c =>
+        `<div class="card${c.blank ? " blank" : ""}"><div class="icon">${esc(c.icon) || "·"}</div><div class="word">${esc(c.word)}</div></div>`
+      ).join("") + `</div>`;
+  }
+  $("out").innerHTML = html;
+}
+
+document.querySelector("aside").addEventListener("input", render);
+$("print").onclick = () => window.print();
+render();
+</script>
+</body>
+</html>

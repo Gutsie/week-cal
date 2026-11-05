@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Veckokalender</title>
+  <style id="page-size">@page { size: A3 landscape; margin: 0; }</style>
+</head>
+<body data-tab="kalender">
+  <header class="topbar">
+    <strong class="brand">Veckokalender</strong>
+    <nav class="tabs">
+      <a href="#kalender" data-tab-link="kalender">Kalender</a>
+      <a href="#kort" data-tab-link="kort">Kort</a>
+    </nav>
+  </header>
+
+  <aside class="panel">
+    <!-- Calendar settings -->
+    <section data-for="kalender">
+      <label>Rubrik</label>
+      <input data-bind="calendar.title" type="text">
+
+      <label>Orientering</label>
+      <select data-bind="calendar.orientation">
+        <option value="landscape">Liggande</option>
+        <option value="portrait">Stående</option>
+      </select>
+
+      <label class="check"><input data-bind="calendar.fade" type="checkbox"> Toning från rubrik till kolumn</label>
+      <label class="check"><input data-bind="calendar.weekend" type="checkbox"> Markera helgen</label>
+
+      <button id="download">Ladda ner PNG (300 dpi)</button>
+      <button class="print secondary">Skriv ut / Spara som PDF</button>
+    </section>
+
+    <!-- Card settings -->
+    <section data-for="kort">
+      <label>Kort (en per rad: ikon och ord)</label>
+      <textarea data-bind="cards.list"></textarea>
+      <div class="hint">Skriv en emoji, ett mellanslag och ordet. Lägg till t.ex. <b>x5</b> sist för fem kort. Totalt: <b id="total">0</b> kort.</div>
+
+      <div class="row">
+        <div><label>Papper</label>
+          <select data-bind="cards.paper"><option value="A4">A4</option><option value="A3">A3</option></select></div>
+        <div><label>Kortstorlek (mm)</label>
+          <input data-bind="cards.size" type="number" min="25" max="80"></div>
+      </div>
+      <div class="hint">45 mm passar kolumnerna på A3 liggande.</div>
+
+      <label class="check"><input data-bind="cards.blanks" type="checkbox"> Fyll sista sidan med tomma kort</label>
+
+      <button class="print">Skriv ut / Spara som PDF</button>
+    </section>
+
+    <!-- Shared settings -->
+    <details class="shared" open>
+      <summary>Gemensamt för kalender och kort</summary>
+      <label>Typsnitt</label>
+      <select data-bind="font">
+        <option>Fredoka</option><option>system-ui</option><option>Georgia</option><option>Helvetica</option>
+      </select>
+
+      <label>Dagar (namn + färg)</label>
+      <div id="days"></div>
+
+      <button id="reset" class="link">Återställ allt till standard</button>
+    </details>
+  </aside>
+
+  <main>
+    <div class="view" data-for="kalender"><canvas id="calendar"></canvas></div>
+    <div class="view" data-for="kort" id="cards"></div>
+  </main>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
