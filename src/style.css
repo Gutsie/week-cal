@@ -56,7 +56,7 @@ main { padding: 24px; overflow: auto; }
   gap: 3mm; justify-content: center; align-content: start;
 }
 .card {
-  border: 0.4mm dashed #bbb; border-radius: 3mm; display: flex; flex-direction: column;
+  border: 0.3mm solid #d4d4d4; border-radius: 3mm; /* thin solid edge doubles as the cutting line */ display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 1.5mm; overflow: hidden; background: #fff;
 }
 .card .icon {
